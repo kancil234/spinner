@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>🎁 Prize Wheel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(to right, #373b44, #4286f4);
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      text-align: center;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      margin: 20px;
+      font-size: 3em;
+      text-shadow: 2px 2px #000;
+    }
+
+    #inputArea {
+      margin: 20px auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    input, select {
+      padding: 10px;
+      font-size: 18px;
+      border-radius: 5px;
+      border: none;
+      width: 250px;
+    }
+
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+      background-color: #00bcd4;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #008c9e;
+    }
+
+    #wheelContainer {
+      position: relative;
+      margin: 30px auto;
+      width: 90vw;
+      max-width: 400px;
+      height: 90vw;
+      max-height: 400px;
+    }
+
+    #wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.6);
+      transition: transform 5s cubic-bezier(0.33, 1, 0.68, 1);
+    }
+
+    #pointer {
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      margin-left: -10px;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 30px solid red;
+      z-index: 10;
+    }
+
+    #winnerDisplay {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 3em;
+      font-weight: bold;
+      color: #ffe600;
+      background: rgba(0,0,0,0.85);
+      padding: 25px 40px;
+      border-radius: 20px;
+      display: none;
+      box-shadow: 0 0 30px #ffe600;
+      animation: glow 1s infinite alternate;
+      z-index: 999;
+    }
+
+    @keyframes glow {
+      from { box-shadow: 0 0 10px #ffe600; }
+      to { box-shadow: 0 0 30px #ffe600; }
+    }
+
+    #nameList {
+      margin: 20px auto;
+      max-width: 90vw;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .name-tag {
+      background: #ffffff22;
+      border: 1px solid #00bcd4;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      position: relative;
+    }
+
+    .name-tag button {
+      background: red;
+      border: none;
+      color: white;
+      font-size: 12px;
+      border-radius: 10px;
+      padding: 0 5px;
+      margin-left: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎁 Prize Wheel</h1>
+
+  <div id="inputArea">
+    <input type="text" id="nameInput" placeholder="Enter a prize" />
+    <button onclick="addName()">Add</button>
+    <button onclick="spin()">🎯 Spin</button>
+    <button onclick="shuffleNames()">🔀 Shuffle</button>
+    <button onclick="clearNames()">🗑 Clear</button>
+    <select id="layoutSwitcher" onchange="switchLayout()">
+      <option value="classic">Classic Layout</option>
+      <option value="minimal">Minimal Layout</option>
+      <option value="neon">Neon Layout</option>
+    </select>
+  </div>
+
+  <div id="nameList"></div>
+  <div id="wheelContainer">
+    <div id="pointer"></div>
+    <canvas id="wheel" width="400" height="400"></canvas>
+  </div>
+  <div id="winnerDisplay"></div>
+
+  <audio id="spinSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_576e6a1b6e.mp3" preload="auto"></audio>
+  <audio id="bgMusic" src="https://cdn.pixabay.com/audio/2022/03/21/audio_7c30bba68f.mp3" preload="auto" loop autoplay></audio>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script>
+    const names = JSON.parse(localStorage.getItem("wheelNames")) || [];
+    const canvas = document.getElementById('wheel');
+    const ctx = canvas.getContext('2d');
+    const spinSound = document.getElementById('spinSound');
+    const winnerDisplay = document.getElementById('winnerDisplay');
+    const nameList = document.getElementById('nameList');
+
+    const colors = ['#ff6b6b','#6b5b95','#88b04b','#f7cac9','#92a8d1','#955251','#b565a7','#009b77','#dd4124'];
+    let angle = 0;
+    let spinning = false;
+
+    function drawWheel() {
+      const total = names.length;
+      const arc = 2 * Math.PI / total;
+      ctx.clearRect(0, 0, 400, 400);
+
+      names.forEach((name, i) => {
+        const start = i * arc;
+        const end = start + arc;
+        ctx.beginPath();
+        ctx.moveTo(200, 200);
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.arc(200, 200, 200, start, end);
+        ctx.fill();
+        ctx.save();
+        ctx.translate(200, 200);
+        ctx.rotate(start + arc / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px Arial';
+        ctx.fillText(name, 180, 5);
+        ctx.restore();
+      });
+      renderNameTags();
+    }
+
+    function addName() {
+      const input = document.getElementById('nameInput');
+      const name = input.value.trim();
+      if (name && !names.includes(name)) {
+        names.push(name);
+        input.value = '';
+        saveNames();
+        drawWheel();
+      }
+    }
+
+    function removeName(index) {
+      names.splice(index, 1);
+      saveNames();
+      drawWheel();
+    }
+
+    function clearNames() {
+      if (confirm("Clear all names?")) {
+        names.length = 0;
+        saveNames();
+        drawWheel();
+      }
+    }
+
+    function shuffleNames() {
+      for (let i = names.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [names[i], names[j]] = [names[j], names[i]];
+      }
+      saveNames();
+      drawWheel();
+    }
+
+    function renderNameTags() {
+      nameList.innerHTML = names.map((name, i) => `
+        <div class="name-tag">${name}
+          <button onclick="removeName(${i})">x</button>
+        </div>`).join('');
+    }
+
+    function saveNames() {
+      localStorage.setItem("wheelNames", JSON.stringify(names));
+    }
+
+    function spin() {
+      if (spinning || names.length < 2) return;
+      spinning = true;
+      spinSound.currentTime = 0;
+      spinSound.play();
+
+      const spinAngle = Math.floor(3600 + Math.random() * 720);
+      const duration = 5000;
+      const start = performance.now();
+      const initialAngle = angle;
+
+      function animate(time) {
+        const progress = Math.min((time - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        angle = initialAngle + eased * spinAngle;
+        canvas.style.transform = `rotate(${angle}deg)`;
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          const finalAngle = (angle % 360 + 360) % 360;
+          const sliceAngle = 360 / names.length;
+          const index = names.length - Math.floor((finalAngle + sliceAngle / 2) / sliceAngle) % names.length;
+          const winner = names[index % names.length];
+          showWinner(winner);
+          spinning = false;
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function showWinner(name) {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+      winnerDisplay.innerText = `🎉 ${name} 🎉`;
+      winnerDisplay.style.display = 'block';
+      setTimeout(() => { winnerDisplay.style.display = 'none'; }, 5000);
+    }
+
+    function switchLayout() {
+      const layout = document.getElementById('layoutSwitcher').value;
+      document.body.className = layout;
+    }
+
+    if (names.length > 0) drawWheel();
+  </script>
+</body>
+</html>
